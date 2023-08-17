@@ -92,11 +92,9 @@ private:
 
     SheetInterface& sheet_; // указывает к какой таблице принадлежит клетка
 
-    std::set<Cell*> users_; // отсортированный список пользователей данной клетки
+    std::unordered_set<Cell*> users_; // отсортированный список пользователей данной клетки
 
     std::unordered_set<Cell*> used_cells_; // список клеток, которые использует данная клетка
-
-    std::set<Cell*> all_chain_users_;
 
     std::optional<Value> cache_; // при создании клетки и внесении в нее информации
 
