@@ -12,7 +12,7 @@ class Sheet;
 
 class Cell : public CellInterface {
 public:
-    Cell(Sheet& sheet);
+    explicit Cell(Sheet& sheet);
     ~Cell();
 
     void Set(std::string text);
@@ -24,6 +24,7 @@ public:
     std::unordered_set<Cell*> GetRefCells() const;
 
     bool IsReferenced() const;
+    void ClearUsed();
 
 private:
 
@@ -38,20 +39,16 @@ private:
         virtual std::string GetText() const = 0;
         virtual std::vector<Position> GetReferencedCells() const {return {};}
         virtual void InvalidateCache() {}
-        virtual bool Cache() {return true;}
+        virtual bool HasCache() {return true;}
 
     };
 
     class EmptyImpl : public Impl {
     public:
 
-        Value GetValue() const override {
-            return "";
-        }
+        Value GetValue() const override;
 
-        std::string GetText() const override {
-            return "";
-        }
+        std::string GetText() const override;
 
     };
 
@@ -60,17 +57,9 @@ private:
 
         explicit TextImpl(const std::string& text) : content(text) {}
 
-        Value GetValue() const override {
-            if (content[0] == ESCAPE_SIGN)
-            {
-                return content.substr(1);
-            }
-            return content;
-        }
+        Value GetValue() const override;
 
-        std::string GetText() const override {
-            return content;
-        }
+        std::string GetText() const override;
 
     private:
 
@@ -83,29 +72,15 @@ private:
 
         explicit FormulaImpl(const std::string& text, SheetInterface& sheet) : content(ParseFormula(text.substr(1))), sheet_(sheet) {}
 
-        Value GetValue() const override {
-            if (!cache_)
-            {
-                cache_ = content->Evaluate(sheet_);
-            }
-            return std::visit([](auto& value){return Value(value);}, *cache_);
-        }
+        Value GetValue() const override;
 
-        std::string GetText() const override {
-            return FORMULA_SIGN + content->GetExpression();
-        }
+        std::string GetText() const override;
 
-        std::vector<Position> GetReferencedCells() const override {
-            return content->GetReferencedCells();
-        }
+        std::vector<Position> GetReferencedCells() const override;
 
-        void InvalidateCache() {
-            cache_.reset();
-        }
+        void InvalidateCache();
 
-        bool Cache() {
-            return cache_.has_value();
-        }
+        bool HasCache() const;
 
     private:
         

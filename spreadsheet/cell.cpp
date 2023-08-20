@@ -24,14 +24,6 @@ void Cell::Set(std::string text) {
     {
         impl = std::make_unique<TextImpl>(std::move(text));
     }
-    if (!used_cells_.empty())
-    {
-        for (Cell* used_cell : used_cells_)
-        {
-            used_cell->users_.erase(this);
-        }
-        used_cells_.clear();
-    }
     const auto used_cells = impl->GetReferencedCells();
     if (!used_cells.empty())
     {
@@ -44,18 +36,29 @@ void Cell::Set(std::string text) {
         {
             throw CircularDependencyException("circular dependency");
         }
+        ClearUsed();
         used_cells_ = std::move(used_set);
         for (Cell* cell : used_cells_)
         {
             cell->users_.insert(this);
         }
     }
+    else
+    {
+        ClearUsed();
+    }
     impl_ = std::move(impl);
     InvalidateCache(true);
 }
 
 void Cell::Clear() {
+    InvalidateCache(true);
     impl_ = std::make_unique<EmptyImpl>();
+    for (Cell* cell : used_cells_)
+    {
+        cell->users_.erase(this);
+    }
+    used_cells_.clear();
 }
 
 Cell::Value Cell::GetValue() const {
@@ -76,6 +79,17 @@ std::unordered_set<Cell*> Cell::GetRefCells() const {
 
 bool Cell::IsReferenced() const {
     return !users_.empty();
+}
+
+void Cell::ClearUsed() {
+    if (!used_cells_.empty())
+    {
+        for (Cell* used_cell : used_cells_)
+        {
+            used_cell->users_.erase(this);
+        }
+        used_cells_.clear();
+    }
 }
 
 bool LoopFinder(const Cell* start, std::set<Cell*>& buffer, const std::unordered_set<Cell*>& used_cells) {
@@ -104,11 +118,7 @@ bool Cell::HasLoop(const std::unordered_set<Cell*>& used_cells) const {
 }
 
 void Cell::InvalidateCache(bool flag = false) {
-    if (this->users_.empty())
-    {
-        return;
-    }
-    if (this->impl_->Cache())
+    if (this->impl_->Cache() || flag)
     {
         this->impl_->InvalidateCache();
         for (Cell* cell : users_)
@@ -116,4 +126,48 @@ void Cell::InvalidateCache(bool flag = false) {
             cell->InvalidateCache();
         }
     }
+}
+
+Value Cell::EmptyImpl::GetValue() const {
+    return "";
+}
+
+std::string Cell::EmptyImpl::GetText() const {
+    return "";
+}
+
+Value Cell::TextImpl::GetValue() const {
+    if (content[0] == ESCAPE_SIGN)
+    {
+        return content.substr(1);
+    }
+    return content;
+}
+
+std::string Cell::TextImpl::GetText() const {
+    return content;
+}
+
+Value Cell::FormulaImpl::GetValue() const {
+    if (!cache_)
+    {
+        cache_ = content->Evaluate(sheet_);
+    }
+    return std::visit([](auto& value) {return Value(value); }, *cache_);
+}
+
+std::string Cell::FormulaImpl::GetText() const {
+    return FORMULA_SIGN + content->GetExpression();
+}
+
+std::vector<Position> Cell::FormulaImpl::GetReferencedCells() const {
+    return content->GetReferencedCells();
+}
+
+void Cell::FormulaImpl::InvalidateCache() {
+    cache_.reset();
+}
+
+bool Cell::FormulaImpl::HasCache() const {
+    return cache_.has_value();
 }
