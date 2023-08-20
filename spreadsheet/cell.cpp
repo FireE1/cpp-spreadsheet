@@ -54,11 +54,7 @@ void Cell::Set(std::string text) {
 void Cell::Clear() {
     InvalidateCache(true);
     impl_ = std::make_unique<EmptyImpl>();
-    for (Cell* cell : used_cells_)
-    {
-        cell->users_.erase(this);
-    }
-    used_cells_.clear();
+    ClearUsed();
 }
 
 Cell::Value Cell::GetValue() const {
